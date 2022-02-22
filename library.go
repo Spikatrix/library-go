@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type book struct {
@@ -16,28 +16,26 @@ type book struct {
 var bookList []book
 
 func errorHandler(w http.ResponseWriter, errorMsg string, err error) {
-	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintln(w, "Something went wrong on our end; sorry about that!")
 	log.Printf("%s: %+v", errorMsg, err)
+	http.Error(w, "Something went wrong on our end; sorry about that!", http.StatusInternalServerError)
 }
 
 func newbook(w http.ResponseWriter, req *http.Request) {
-	if reqType := req.Method; reqType != "POST" {
+	if reqType := req.Method; reqType != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Header().Add("Allow", "POST")
+		w.Header().Add("Allow", http.MethodPost)
 		fmt.Fprintln(w, "Sorry, only POST requests are supported on this endpoint")
 		return
 	}
 
-	reqBody, err := ioutil.ReadAll(req.Body)
+	bookItem := book{}
+	err := json.NewDecoder(req.Body).Decode(&bookItem)
 	if err != nil {
-		errorHandler(w, "Failed to read request body", err)
+		errorHandler(w, "Failed to decode request body", err)
 		return
 	}
 
-	bookItem := book{}
-	json.Unmarshal(reqBody, &bookItem)
-
+	bookItem.Name, bookItem.Author = strings.TrimSpace(bookItem.Name), strings.TrimSpace(bookItem.Author)
 	if bookItem.Name == "" || bookItem.Author == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Invalid book. "+
