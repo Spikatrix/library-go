@@ -1,19 +1,28 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type book struct {
-	Name   string `json:"name"`
-	Author string `json:"author"`
+	ID     primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name   string             `bson:"name" json:"name"`
+	Author string             `bson:"author" json:"author"`
 }
 
-var bookList []book
+var bookCollection *mongo.Collection
 
 func errorHandler(w http.ResponseWriter, errorMsg string, err error) {
 	log.Printf("%s: %+v", errorMsg, err)
@@ -43,12 +52,32 @@ func newbook(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bookList = append(bookList, bookItem)
+	result, err := bookCollection.InsertOne(context.TODO(), bookItem)
+	if err != nil {
+		errorHandler(w, "Failed to insert book", err)
+		return
+	}
+
+	bookItem.ID = result.InsertedID.(primitive.ObjectID)
 	fmt.Fprintf(w, "Added book %+v\n", bookItem)
 }
 
 func books(w http.ResponseWriter, req *http.Request) {
-	data, err := json.Marshal(map[string][]book{"books": bookList})
+	cursor, err := bookCollection.Find(context.TODO(), bson.D{})
+	if err != nil {
+		errorHandler(w, "Failed to query database", err)
+		return
+	}
+
+	var bookList []book
+	if err = cursor.All(context.TODO(), &bookList); err != nil {
+		errorHandler(w, "Failed to decode bookList", err)
+	}
+	if bookList == nil {
+		bookList = []book{}
+	}
+
+	data, err := json.MarshalIndent(map[string][]book{"books": bookList}, "", "  ")
 	if err != nil {
 		errorHandler(w, "Failed to marshal bookList", err)
 		return
@@ -69,12 +98,29 @@ func root(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	bookList = make([]book, 0)
+	godotenv.Load() // Loads .env file data
+	dbURI := os.Getenv("MONGODB_URI")
+	if dbURI == "" {
+		panic("MongoDB URI is not specified; have you set the MONGODB_URI environment variable?")
+	}
+
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbURI))
+	if err != nil {
+		panic(err)
+	}
+
+	defer func() {
+		if err := client.Disconnect(context.TODO()); err != nil {
+			panic(err)
+		}
+	}()
+
+	bookCollection = client.Database("library").Collection("books")
 
 	http.HandleFunc("/", root)
 	http.HandleFunc("/books", books)
 	http.HandleFunc("/newbook", newbook)
 
-	err := http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(":8080", nil)
 	panic(err)
 }
