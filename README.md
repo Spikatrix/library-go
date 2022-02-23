@@ -16,9 +16,12 @@ curl http://localhost:8080/newbook -XPOST -H 'Content-Type: application/json' -d
 
 # List books
 curl http://localhost:8080/books
+
+# List a single book
+curl http://localhost:8080/book/<bookID>  # Replace <bookID> with the ID of the book
 ```
 
-If you wish to run this with Docker, use the following in place of `go mod download; go run library.go`:
+If you wish to run this with Docker, run the following in place of `go mod download; go run library.go`:
 
 ```bash
 docker build . -t spikatrix/library-go
