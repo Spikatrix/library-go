@@ -121,6 +121,8 @@ func main() {
 	http.HandleFunc("/books", books)
 	http.HandleFunc("/newbook", newbook)
 
-	err = http.ListenAndServe(":8080", nil)
+	const port = "8080"
+	log.Println("Server is ready at http://localhost:" + port)
+	err = http.ListenAndServe(":"+port, nil)
 	panic(err)
 }
