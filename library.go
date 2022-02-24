@@ -59,6 +59,7 @@ func NewBook(w http.ResponseWriter, req *http.Request) {
 func Book(w http.ResponseWriter, req *http.Request) {
 	bookID, err := primitive.ObjectIDFromHex(mux.Vars(req)["id"])
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Invalid book ID")
 		return
 	}
@@ -66,6 +67,7 @@ func Book(w http.ResponseWriter, req *http.Request) {
 	var bookItem book
 	err = bookCollection.FindOne(context.TODO(), bson.D{{Key: "_id", Value: bookID}}).Decode(&bookItem)
 	if err == mongo.ErrNoDocuments {
+		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No book with id '%s' is available in the database", bookID)
 		return
 	} else if err != nil {
@@ -119,25 +121,42 @@ func Root(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(w, "</ul>")
 }
 
-func main() {
-	godotenv.Load() // Loads .env file data
-	dbURI := os.Getenv("MONGODB_URI")
+func setupDB(dbURI string) (func(), error) {
+	var err error
+
 	if dbURI == "" {
-		panic("MongoDB URI is not specified; have you set the MONGODB_URI environment variable?")
+		err = fmt.Errorf("MongoDB URI is not specified; have you set the MONGODB_URI environment variable?")
+		return nil, err
 	}
 
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbURI))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	defer func() {
+	dbCloseFunc := func() {
 		if err := client.Disconnect(context.TODO()); err != nil {
 			panic(err)
 		}
-	}()
+	}
 
 	bookCollection = client.Database("library").Collection("books")
+
+	return dbCloseFunc, err
+}
+
+func dbURI() string {
+	godotenv.Load() // Loads .env file data
+	return os.Getenv("MONGODB_URI")
+}
+
+func main() {
+	dbClose, err := setupDB(dbURI())
+	if err != nil {
+		panic(err)
+	}
+
+	defer dbClose()
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", Root).Methods("GET")
