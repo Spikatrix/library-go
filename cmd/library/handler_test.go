@@ -1,6 +1,7 @@
-package main
+package library
 
 import (
+	"Spikatrix/library-go/pkg/models"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,13 @@ func TestGetBooks(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/books", nil)
 	w := httptest.NewRecorder()
 
-	setupDB(dbURI())
+	dbClose, err := models.SetupDB(models.TestDbURI())
+	if err != nil {
+		t.Errorf("DB setup failed: %+v", err)
+		return
+	}
+	defer dbClose()
+
 	Books(w, req)
 
 	if statusCode := w.Result().StatusCode; statusCode != http.StatusOK {
@@ -47,7 +54,13 @@ func TestGetBook(t *testing.T) {
 			w := httptest.NewRecorder()
 			req = mux.SetURLVars(req, map[string]string{"id": tc.bookID})
 
-			setupDB(dbURI())
+			dbClose, err := models.SetupDB(models.TestDbURI())
+			if err != nil {
+				t.Errorf("DB setup failed: %+v", err)
+				return
+			}
+			defer dbClose()
+
 			Book(w, req)
 
 			if statusCode := w.Result().StatusCode; statusCode != tc.expectedStatusCode {
@@ -59,7 +72,7 @@ func TestGetBook(t *testing.T) {
 }
 
 func TestAddBook(t *testing.T) {
-	book := book{Name: "Test book", Author: "Test author"}
+	book := models.Book{Name: "Test book", Author: "Test author"}
 	bookJson, err := json.Marshal(book)
 	if err != nil {
 		t.Error(err)
@@ -68,7 +81,13 @@ func TestAddBook(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/newbook", strings.NewReader(string(bookJson)))
 	w := httptest.NewRecorder()
 
-	setupDB(dbURI())
+	dbClose, err := models.SetupDB(models.TestDbURI())
+	if err != nil {
+		t.Errorf("DB setup failed: %+v", err)
+		return
+	}
+	defer dbClose()
+
 	NewBook(w, req)
 
 	if statusCode := w.Result().StatusCode; statusCode != http.StatusOK {

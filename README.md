@@ -8,8 +8,9 @@ A simple library application written in Go
 git clone git@github.com:Spikatrix/library-go.git
 cd library-go
 echo "MONGODB_URI=<...>" > .env  # Replace <...> with the MongoDB URI link
+echo "MONGODB_URI=<...>" > cmd/library/.env.test  # Replace <...> with the testing MongoDB URI link (DB for testing)
 go mod download
-go run library.go
+go run main.go
 
 # Add a new book
 curl http://localhost:8080/newbook -XPOST -H 'Content-Type: application/json' -d '{"name": "Atomic Habits", "author": "James Clear"}'

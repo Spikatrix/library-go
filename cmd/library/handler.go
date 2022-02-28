@@ -1,29 +1,19 @@
-package main
+package library
 
 import (
+	"Spikatrix/library-go/pkg/models"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-type book struct {
-	ID     primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name   string             `bson:"name" json:"name"`
-	Author string             `bson:"author" json:"author"`
-}
-
-var bookCollection *mongo.Collection
 
 func ErrorHandler(w http.ResponseWriter, errorMsg string, err error) {
 	log.Printf("%s: %+v", errorMsg, err)
@@ -31,7 +21,7 @@ func ErrorHandler(w http.ResponseWriter, errorMsg string, err error) {
 }
 
 func NewBook(w http.ResponseWriter, req *http.Request) {
-	bookItem := book{}
+	bookItem := models.Book{}
 	err := json.NewDecoder(req.Body).Decode(&bookItem)
 	if err != nil {
 		ErrorHandler(w, "Failed to decode request body", err)
@@ -46,7 +36,7 @@ func NewBook(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	result, err := bookCollection.InsertOne(context.TODO(), bookItem)
+	result, err := models.BookCollection.InsertOne(context.TODO(), bookItem)
 	if err != nil {
 		ErrorHandler(w, "Failed to insert book", err)
 		return
@@ -64,8 +54,8 @@ func Book(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var bookItem book
-	err = bookCollection.FindOne(context.TODO(), bson.D{{Key: "_id", Value: bookID}}).Decode(&bookItem)
+	var bookItem models.Book
+	err = models.BookCollection.FindOne(context.TODO(), bson.D{{Key: "_id", Value: bookID}}).Decode(&bookItem)
 	if err == mongo.ErrNoDocuments {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No book with id '%s' is available in the database", bookID)
@@ -75,7 +65,7 @@ func Book(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	data, err := json.MarshalIndent(map[string]book{"book": bookItem}, "", "  ")
+	data, err := json.MarshalIndent(map[string]models.Book{"book": bookItem}, "", "  ")
 	if err != nil {
 		ErrorHandler(w, "Failed to marshal bookItem", err)
 		return
@@ -85,22 +75,22 @@ func Book(w http.ResponseWriter, req *http.Request) {
 }
 
 func Books(w http.ResponseWriter, req *http.Request) {
-	cursor, err := bookCollection.Find(context.TODO(), bson.D{})
+	cursor, err := models.BookCollection.Find(context.TODO(), bson.D{})
 	if err != nil {
 		ErrorHandler(w, "Failed to query database", err)
 		return
 	}
 
-	var bookList []book
+	var bookList []models.Book
 	if err = cursor.All(context.TODO(), &bookList); err != nil {
 		ErrorHandler(w, "Failed to decode bookList", err)
 		return
 	}
 	if bookList == nil {
-		bookList = []book{}
+		bookList = []models.Book{}
 	}
 
-	data, err := json.MarshalIndent(map[string][]book{"books": bookList}, "", "  ")
+	data, err := json.MarshalIndent(map[string][]models.Book{"books": bookList}, "", "  ")
 	if err != nil {
 		ErrorHandler(w, "Failed to marshal bookList", err)
 		return
@@ -119,54 +109,4 @@ func Root(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintln(w, "	<li>Visit /books/&lt;id&gt; to get a particular book</li>")
 	fmt.Fprintln(w, "	<li>Send a POST request to /newbook to add a new book</li>")
 	fmt.Fprintln(w, "</ul>")
-}
-
-func setupDB(dbURI string) (func(), error) {
-	var err error
-
-	if dbURI == "" {
-		err = fmt.Errorf("MongoDB URI is not specified; have you set the MONGODB_URI environment variable?")
-		return nil, err
-	}
-
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbURI))
-	if err != nil {
-		return nil, err
-	}
-
-	dbCloseFunc := func() {
-		if err := client.Disconnect(context.TODO()); err != nil {
-			panic(err)
-		}
-	}
-
-	bookCollection = client.Database("library").Collection("books")
-
-	return dbCloseFunc, err
-}
-
-func dbURI() string {
-	godotenv.Load() // Loads .env file data
-	return os.Getenv("MONGODB_URI")
-}
-
-func main() {
-	dbClose, err := setupDB(dbURI())
-	if err != nil {
-		panic(err)
-	}
-
-	defer dbClose()
-
-	r := mux.NewRouter()
-	r.HandleFunc("/", Root).Methods("GET")
-	r.HandleFunc("/books", Books).Methods("GET")
-	r.HandleFunc("/book/{id}", Book).Methods("GET")
-	r.HandleFunc("/newbook", NewBook).Methods("POST")
-	http.Handle("/", r)
-
-	const port = "8080"
-	log.Println("Server is ready at http://localhost:" + port)
-	err = http.ListenAndServe(":"+port, nil)
-	panic(err)
 }
