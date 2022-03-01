@@ -11,8 +11,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// TODO: avoid using global var, instead try to inject it to the handlers
 var BookCollection *mongo.Collection
 
+// TODO: multiple const or var can be clubbed inside parenthesis
 const dbName = "library"
 const collectionName = "books"
 
@@ -22,6 +24,7 @@ type Book struct {
 	Author string             `bson:"author" json:"author"`
 }
 
+// TODO: db setup is independent of any model, hence should reside inside it's own package
 func SetupDB(dbURI string) (func(), error) {
 	var err error
 

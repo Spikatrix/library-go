@@ -54,6 +54,7 @@ func Book(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO: data layer functions should ALWAYS be separated from handlers (business logic), this logic goes inside db package inside pkg directory
 	var bookItem models.Book
 	err = models.BookCollection.FindOne(context.TODO(), bson.D{{Key: "_id", Value: bookID}}).Decode(&bookItem)
 	if err == mongo.ErrNoDocuments {
