@@ -47,7 +47,8 @@ func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 }
 
 func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
-	bookID, err := primitive.ObjectIDFromHex(mux.Vars(req)["id"])
+	urlQueryID := mux.Vars(req)["id"]
+	bookID, err := primitive.ObjectIDFromHex(urlQueryID)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Invalid book ID")
@@ -57,7 +58,8 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 	bookItem, err := db.GetBookByID(server.bookCollection, bookID)
 	if err == db.ErrBookNotFound {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "No book with id '%s' is available in the database", bookID)
+		fmt.Fprintf(w, "No book with id '%s' is available in the database", urlQueryID)
+		return
 	} else if err == db.ErrBookDecodeFailed {
 		errorHandler(w, "Failed to decode book", err)
 		return
@@ -111,6 +113,6 @@ func Root(w http.ResponseWriter, req *http.Request) {
 	}
 
 	for _, introMessage := range introMessages {
-		fmt.Println(w, introMessage)
+		fmt.Fprintln(w, introMessage)
 	}
 }
