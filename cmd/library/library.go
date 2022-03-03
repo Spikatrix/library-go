@@ -1,33 +1,39 @@
 package library
 
 import (
-	"Spikatrix/library-go/pkg/models"
+	"Spikatrix/library-go/pkg/db"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func StartLibraryServer() {
-	dbClose, err := models.SetupDB(models.DbURI())
+type server struct {
+	bookCollection *mongo.Collection
+}
 
-	// TODO: panic is not the best way to handle the error, try using any logger
+func StartLibraryServer() {
+	bookCollection, dbClose, err := db.SetupDB(db.DbURI())
+
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to setup DB: %+v", err)
 	}
 
 	defer dbClose()
 
+	libraryServer := server{
+		bookCollection: bookCollection,
+	}
+
 	r := mux.NewRouter()
 	r.HandleFunc("/", Root).Methods("GET")
-	// TODO: handler names can be improved, these seem a bit confusing
-	r.HandleFunc("/books", Books).Methods("GET")
-	r.HandleFunc("/book/{id}", Book).Methods("GET")
-	r.HandleFunc("/newbook", NewBook).Methods("POST")
+	r.HandleFunc("/books", libraryServer.GetBooks).Methods("GET")
+	r.HandleFunc("/book/{id}", libraryServer.GetBookByID).Methods("GET")
+	r.HandleFunc("/newbook", libraryServer.CreateNewBook).Methods("POST")
 	http.Handle("/", r)
 
-	// TODO: inside a func, const is irrelevant, a simple var would suffice. Here, the port can be const or better declare it as env var
-	const port = "8080"
+	port := "8080"
 	log.Println("Server is ready at http://localhost:" + port)
-	panic(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

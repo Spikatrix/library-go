@@ -1,8 +1,8 @@
 package library
 
 import (
+	"Spikatrix/library-go/pkg/db"
 	"Spikatrix/library-go/pkg/models"
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,21 +10,19 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func ErrorHandler(w http.ResponseWriter, errorMsg string, err error) {
+func errorHandler(w http.ResponseWriter, errorMsg string, err error) {
 	log.Printf("%s: %+v", errorMsg, err)
 	http.Error(w, "Something went wrong on our end; sorry about that!", http.StatusInternalServerError)
 }
 
-func NewBook(w http.ResponseWriter, req *http.Request) {
+func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 	bookItem := models.Book{}
 	err := json.NewDecoder(req.Body).Decode(&bookItem)
 	if err != nil {
-		ErrorHandler(w, "Failed to decode request body", err)
+		errorHandler(w, "Failed to decode request body", err)
 		return
 	}
 
@@ -36,17 +34,19 @@ func NewBook(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	result, err := models.BookCollection.InsertOne(context.TODO(), bookItem)
-	if err != nil {
-		ErrorHandler(w, "Failed to insert book", err)
+	bookItem, err = db.CreateNewBook(server.bookCollection, bookItem)
+	if err == db.ErrBookInsertFailed {
+		errorHandler(w, "Failed to insert book", err)
+		return
+	} else if err != nil {
+		errorHandler(w, "db.CreateNewBook failed with an unknown error", err)
 		return
 	}
 
-	bookItem.ID = result.InsertedID.(primitive.ObjectID)
 	fmt.Fprintf(w, "Added book %+v\n", bookItem)
 }
 
-func Book(w http.ResponseWriter, req *http.Request) {
+func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 	bookID, err := primitive.ObjectIDFromHex(mux.Vars(req)["id"])
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -54,46 +54,43 @@ func Book(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: data layer functions should ALWAYS be separated from handlers (business logic), this logic goes inside db package inside pkg directory
-	var bookItem models.Book
-	err = models.BookCollection.FindOne(context.TODO(), bson.D{{Key: "_id", Value: bookID}}).Decode(&bookItem)
-	if err == mongo.ErrNoDocuments {
+	bookItem, err := db.GetBookByID(server.bookCollection, bookID)
+	if err == db.ErrBookNotFound {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No book with id '%s' is available in the database", bookID)
+	} else if err == db.ErrBookDecodeFailed {
+		errorHandler(w, "Failed to decode book", err)
 		return
 	} else if err != nil {
-		ErrorHandler(w, "Failed to decode book", err)
+		errorHandler(w, "db.GetBookByID failed with an unknown error", err)
 		return
 	}
 
 	data, err := json.MarshalIndent(map[string]models.Book{"book": bookItem}, "", "  ")
 	if err != nil {
-		ErrorHandler(w, "Failed to marshal bookItem", err)
+		errorHandler(w, "Failed to marshal bookItem", err)
 		return
 	}
 
 	fmt.Fprintln(w, string(data))
 }
 
-func Books(w http.ResponseWriter, req *http.Request) {
-	cursor, err := models.BookCollection.Find(context.TODO(), bson.D{})
-	if err != nil {
-		ErrorHandler(w, "Failed to query database", err)
+func (server *server) GetBooks(w http.ResponseWriter, req *http.Request) {
+	bookList, err := db.GetBooks(server.bookCollection)
+	if err == db.ErrBookQueryFailed {
+		errorHandler(w, "Failed to query database", err)
 		return
-	}
-
-	var bookList []models.Book
-	if err = cursor.All(context.TODO(), &bookList); err != nil {
-		ErrorHandler(w, "Failed to decode bookList", err)
+	} else if err == db.ErrBookDecodeFailed {
+		errorHandler(w, "Failed to decode bookList", err)
 		return
-	}
-	if bookList == nil {
-		bookList = []models.Book{}
+	} else if err != nil {
+		errorHandler(w, "db.GetBooks failed with an unknown error", err)
+		return
 	}
 
 	data, err := json.MarshalIndent(map[string][]models.Book{"books": bookList}, "", "  ")
 	if err != nil {
-		ErrorHandler(w, "Failed to marshal bookList", err)
+		errorHandler(w, "Failed to marshal bookList", err)
 		return
 	}
 
@@ -103,11 +100,17 @@ func Books(w http.ResponseWriter, req *http.Request) {
 func Root(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 
-	fmt.Fprintln(w, "<h2>Welcome to the library application!</h2>")
-	fmt.Fprintln(w, "<div>Here's what you can do here:</div>")
-	fmt.Fprintln(w, "<ul>")
-	fmt.Fprintln(w, "	<li>Visit <a href=\"/books\">/books</a> to get all books</li>")
-	fmt.Fprintln(w, "	<li>Visit /books/&lt;id&gt; to get a particular book</li>")
-	fmt.Fprintln(w, "	<li>Send a POST request to /newbook to add a new book</li>")
-	fmt.Fprintln(w, "</ul>")
+	introMessages := []string{
+		"<h2>Welcome to the library application!</h2>",
+		"<div>Here's what you can do here:</div>",
+		"<ul>",
+		"	<li>Visit <a href=\"/books\">/books</a> to get all books</li>",
+		"	<li>Visit /books/&lt;id&gt; to get a particular book</li>",
+		"	<li>Send a POST request to /newbook to add a new book</li>",
+		"</ul>",
+	}
+
+	for _, introMessage := range introMessages {
+		fmt.Println(w, introMessage)
+	}
 }

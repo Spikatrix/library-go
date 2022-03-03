@@ -1,6 +1,7 @@
 package library
 
 import (
+	"Spikatrix/library-go/pkg/db"
 	"Spikatrix/library-go/pkg/models"
 	"encoding/json"
 	"net/http"
@@ -15,14 +16,18 @@ func TestGetBooks(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/books", nil)
 	w := httptest.NewRecorder()
 
-	dbClose, err := models.SetupDB(models.TestDbURI())
+	bookCollection, dbClose, err := db.SetupDB(db.TestDbURI())
 	if err != nil {
 		t.Errorf("DB setup failed: %+v", err)
 		return
 	}
 	defer dbClose()
 
-	Books(w, req)
+	libraryServer := server{
+		bookCollection: bookCollection,
+	}
+
+	libraryServer.GetBooks(w, req)
 
 	if statusCode := w.Result().StatusCode; statusCode != http.StatusOK {
 		t.Errorf("Get books expected status code %d, got %d. Response: '%s'",
@@ -54,14 +59,18 @@ func TestGetBook(t *testing.T) {
 			w := httptest.NewRecorder()
 			req = mux.SetURLVars(req, map[string]string{"id": tc.bookID})
 
-			dbClose, err := models.SetupDB(models.TestDbURI())
+			bookCollection, dbClose, err := db.SetupDB(db.TestDbURI())
 			if err != nil {
 				t.Errorf("DB setup failed: %+v", err)
 				return
 			}
 			defer dbClose()
 
-			Book(w, req)
+			libraryServer := server{
+				bookCollection: bookCollection,
+			}
+
+			libraryServer.GetBookByID(w, req)
 
 			if statusCode := w.Result().StatusCode; statusCode != tc.expectedStatusCode {
 				t.Errorf("Get book expected status code %d, got %d (Response: '%s')",
@@ -81,14 +90,18 @@ func TestAddBook(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/newbook", strings.NewReader(string(bookJson)))
 	w := httptest.NewRecorder()
 
-	dbClose, err := models.SetupDB(models.TestDbURI())
+	bookCollection, dbClose, err := db.SetupDB(db.TestDbURI())
 	if err != nil {
 		t.Errorf("DB setup failed: %+v", err)
 		return
 	}
 	defer dbClose()
 
-	NewBook(w, req)
+	libraryServer := server{
+		bookCollection: bookCollection,
+	}
+
+	libraryServer.CreateNewBook(w, req)
 
 	if statusCode := w.Result().StatusCode; statusCode != http.StatusOK {
 		t.Errorf("New book expected status code %d, got %d. Response: '%s'",
