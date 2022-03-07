@@ -35,11 +35,12 @@ func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 	}
 
 	bookItem, err = db.CreateNewBook(server.bookCollection, bookItem)
-	if err.Error() == db.ErrBookInsertFailed {
-		errorHandler(w, "Failed to insert book", err)
-		return
-	} else if err != nil {
-		errorHandler(w, "db.CreateNewBook failed with an unknown error", err)
+	if err != nil {
+		if err.Error() == db.ErrBookInsertFailed {
+			errorHandler(w, "Failed to insert book", err)
+		} else {
+			errorHandler(w, "db.CreateNewBook failed with an unknown error", err)
+		}
 		return
 	}
 
@@ -56,15 +57,15 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 	}
 
 	bookItem, err := db.GetBookByID(server.bookCollection, bookID)
-	if err.Error() == db.ErrBookNotFound {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "No book with id '%s' is available in the database", urlQueryID)
-		return
-	} else if err.Error() == db.ErrBookDecodeFailed {
-		errorHandler(w, "Failed to decode book", err)
-		return
-	} else if err != nil {
-		errorHandler(w, "db.GetBookByID failed with an unknown error", err)
+	if err != nil {
+		if err.Error() == db.ErrBookNotFound {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "No book with id '%s' is available in the database", urlQueryID)
+		} else if err.Error() == db.ErrBookDecodeFailed {
+			errorHandler(w, "Failed to decode book", err)
+		} else {
+			errorHandler(w, "db.GetBookByID failed with an unknown error", err)
+		}
 		return
 	}
 
@@ -79,14 +80,14 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 
 func (server *server) GetBooks(w http.ResponseWriter, req *http.Request) {
 	bookList, err := db.GetBooks(server.bookCollection)
-	if err.Error() == db.ErrBookQueryFailed {
-		errorHandler(w, "Failed to query database", err)
-		return
-	} else if err.Error() == db.ErrBookDecodeFailed {
-		errorHandler(w, "Failed to decode bookList", err)
-		return
-	} else if err != nil {
-		errorHandler(w, "db.GetBooks failed with an unknown error", err)
+	if err != nil {
+		if err.Error() == db.ErrBookQueryFailed {
+			errorHandler(w, "Failed to query database", err)
+		} else if err.Error() == db.ErrBookDecodeFailed {
+			errorHandler(w, "Failed to decode bookList", err)
+		} else if err != nil {
+			errorHandler(w, "db.GetBooks failed with an unknown error", err)
+		}
 		return
 	}
 
