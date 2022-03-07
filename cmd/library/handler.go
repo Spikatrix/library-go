@@ -35,7 +35,7 @@ func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 	}
 
 	bookItem, err = db.CreateNewBook(server.bookCollection, bookItem)
-	if err == db.ErrBookInsertFailed {
+	if err.Error() == db.ErrBookInsertFailed {
 		errorHandler(w, "Failed to insert book", err)
 		return
 	} else if err != nil {
@@ -56,11 +56,11 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 	}
 
 	bookItem, err := db.GetBookByID(server.bookCollection, bookID)
-	if err == db.ErrBookNotFound {
+	if err.Error() == db.ErrBookNotFound {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "No book with id '%s' is available in the database", urlQueryID)
 		return
-	} else if err == db.ErrBookDecodeFailed {
+	} else if err.Error() == db.ErrBookDecodeFailed {
 		errorHandler(w, "Failed to decode book", err)
 		return
 	} else if err != nil {
@@ -79,10 +79,10 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 
 func (server *server) GetBooks(w http.ResponseWriter, req *http.Request) {
 	bookList, err := db.GetBooks(server.bookCollection)
-	if err == db.ErrBookQueryFailed {
+	if err.Error() == db.ErrBookQueryFailed {
 		errorHandler(w, "Failed to query database", err)
 		return
-	} else if err == db.ErrBookDecodeFailed {
+	} else if err.Error() == db.ErrBookDecodeFailed {
 		errorHandler(w, "Failed to decode bookList", err)
 		return
 	} else if err != nil {
