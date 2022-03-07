@@ -13,16 +13,23 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func errorHandler(w http.ResponseWriter, errorMsg string, err error) {
-	log.Printf("%s: %+v", errorMsg, err)
-	http.Error(w, "Something went wrong on our end; sorry about that!", http.StatusInternalServerError)
+func errorHandler(w http.ResponseWriter, err error) {
+	var statusCode int
+	if err.Error() == db.ErrBookNotFound {
+		statusCode = http.StatusNotFound
+	} else {
+		log.Printf("Error: %+v", err)
+		statusCode = http.StatusInternalServerError
+	}
+
+	http.Error(w, err.Error(), statusCode)
 }
 
 func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 	bookItem := models.Book{}
 	err := json.NewDecoder(req.Body).Decode(&bookItem)
 	if err != nil {
-		errorHandler(w, "Failed to decode request body", err)
+		errorHandler(w, err)
 		return
 	}
 
@@ -36,11 +43,7 @@ func (server *server) CreateNewBook(w http.ResponseWriter, req *http.Request) {
 
 	bookItem, err = db.CreateNewBook(server.bookCollection, bookItem)
 	if err != nil {
-		if err.Error() == db.ErrBookInsertFailed {
-			errorHandler(w, "Failed to insert book", err)
-		} else {
-			errorHandler(w, "db.CreateNewBook failed with an unknown error", err)
-		}
+		errorHandler(w, err)
 		return
 	}
 
@@ -58,20 +61,13 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 
 	bookItem, err := db.GetBookByID(server.bookCollection, bookID)
 	if err != nil {
-		if err.Error() == db.ErrBookNotFound {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, "No book with id '%s' is available in the database", urlQueryID)
-		} else if err.Error() == db.ErrBookDecodeFailed {
-			errorHandler(w, "Failed to decode book", err)
-		} else {
-			errorHandler(w, "db.GetBookByID failed with an unknown error", err)
-		}
+		errorHandler(w, err)
 		return
 	}
 
 	data, err := json.MarshalIndent(map[string]models.Book{"book": bookItem}, "", "  ")
 	if err != nil {
-		errorHandler(w, "Failed to marshal bookItem", err)
+		errorHandler(w, err)
 		return
 	}
 
@@ -81,19 +77,13 @@ func (server *server) GetBookByID(w http.ResponseWriter, req *http.Request) {
 func (server *server) GetBooks(w http.ResponseWriter, req *http.Request) {
 	bookList, err := db.GetBooks(server.bookCollection)
 	if err != nil {
-		if err.Error() == db.ErrBookQueryFailed {
-			errorHandler(w, "Failed to query database", err)
-		} else if err.Error() == db.ErrBookDecodeFailed {
-			errorHandler(w, "Failed to decode bookList", err)
-		} else if err != nil {
-			errorHandler(w, "db.GetBooks failed with an unknown error", err)
-		}
+		errorHandler(w, err)
 		return
 	}
 
 	data, err := json.MarshalIndent(map[string][]models.Book{"books": bookList}, "", "  ")
 	if err != nil {
-		errorHandler(w, "Failed to marshal bookList", err)
+		errorHandler(w, err)
 		return
 	}
 
