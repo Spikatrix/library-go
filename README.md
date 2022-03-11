@@ -22,9 +22,19 @@ curl http://localhost:8080/books
 curl http://localhost:8080/book/<bookID>  # Replace <bookID> with the ID of the book
 ```
 
-If you wish to run this with Docker, run the following in place of `go mod download; go run library.go`:
+If you wish to run this with Docker, run the following:
 
 ```bash
 docker build . -t spikatrix/library-go
-docker run --name library-go -d -p 8080:8080 spikatrix/library-go
+docker run --name library-go -d -p 8080:8080 -e MONGODB_URI=<...> spikatrix/library-go # Replace <...> with the MongoDB URI link
+# Use the curl commands shown above to access the library API
+```
+
+If you wish to run this in a `kind` kubernetes cluster, run the following:
+
+```bash
+cd manifests
+kind create cluster --config kind-library-config.yml --name kind
+kubectl apply -f library-deployment.yml,mongodb-configmap.yml,mongodb-statefulset.yml
+# Wait until all resources are ready. Once ready, use the curl commands shown above to access the library API
 ```
